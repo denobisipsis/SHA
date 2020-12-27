@@ -340,8 +340,6 @@ class SHA
 	
 	for ($k=0;$k<8;$k++)
 		$H512[$k] = gmp_init($H512[$k]);
-
-	$H0=array();
 	
 	for ($i = 0;$i<8;$i++)		
 		$this->H512[$i] = "0x".bin2hex(gmp_export(gmp_xor($H512[$i] , gmp_init("0xa5a5a5a5a5a5a5a5"))));
