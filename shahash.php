@@ -487,7 +487,7 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	return bin2hex(substr($this->keccak_p($state),0,$sizeoutput));		
 	}
     
-    function theta(&$lanes)
+    function Theta(&$lanes)
     	{
 	/*
 		1. For all pairs (x,z) such that 0=x<5 and 0=z<w, let
@@ -586,7 +586,7 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 		}
 	}
 
-    function iota(&$lanes,&$LFSRstate)
+    function Iota(&$lanes,&$LFSRstate)
     	{
 	/*
 	?
@@ -612,14 +612,14 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	The effect of ? is to modify some of the bits of Lane (0, 0) in a manner that depends on the round
 		index ir. The other 24 lanes are not affected by ?.	
 
-	$RCC = $this->rotLeft64("\1\0\0\0\0\0\0\0",$bitPosition);
+	$RC = $this->rotLeft64("\1\0\0\0\0\0\0\0",$bitPosition);
 	
 	bitposition = for i=0 to 6  2**i -1
 	
 	0,1,3,7,15,31,63
 	*/
 	
-	$RCC = [
+	$RC = [
 	"\1\0\0\0\0\0\0\0",
 	"\2\0\0\0\0\0\0\0",
 	"\x8\0\0\0\0\0\0\0",
@@ -627,26 +627,16 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	"\0\x80\0\0\0\0\0\0",
 	"\0\0\0\x80\0\0\0\0",
 	"\0\0\0\0\0\0\0\x80"];
+				
+	/*
+	$bitPosition    = (1 << $j) - 1; //2^j-1
 	
-	for ($j=0;$j<7;$j++) 
-		{			  
-		if ($LFSRstate  & 1) 				
-			/*
-			$bitPosition    = (1 << $j) - 1; //2^j-1
-			
-			$RC = $this->rotLeft64("\1\0\0\0\0\0\0\0",$bitPosition);				
-			$RC is strrev(2**$bitPosition) == strrev(1<<bitPosition)						
-			*/				
-			$lanes[0] ^= $RCC[$j];
-							
-		if ($LFSRstate & 0x80)
-			// Primitive polynomial over GF(2): x^8+x^6+x^5+x^4+1
-			$LFSRstate    = ($LFSRstate  << 1) ^ 0x71;
-		else
-			$LFSRstate  <<= 1;
+	$RC = $this->rotLeft64("\1\0\0\0\0\0\0\0",$bitPosition);				
+	$RC is strrev(2**$bitPosition) == strrev(1<<bitPosition)						
+	*/				
 		
-		$LFSRstate  &= 0xff;
-		}
+	for ($j=0;$j<7;$j++) 
+		if ($LFSRstate[$j]) $lanes[0] ^= $RC[$j];
 	}
 			
     function keccak_p($state) 
@@ -662,9 +652,12 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	*/
 	
 	$lanes     = str_split($state,8);
-	
-	$LFSRstate = 1;
-			
+
+	$LFSRstate = [
+	"1000000","0101100","0111101","0000111","1111100","1000010","1001111","1010101",
+	"0111000","0011000","1010110","0110010","1111110","1111001","1011101","1100101",
+	"0100101","0001001","0110100","0110011","1001111","0001101","1000010","0010111"];
+				
 	/*
 	The permutation is defined for any b in {25, 50, 100, 200, 400, 800,
 	1600} and any positive integer n
@@ -687,13 +680,10 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 		/*
 		The five step mappings that comprise a round of KECCAK-p[b, nr] are denoted by ?, ?, p, ?, and ?.
 		*/		
-		$this->theta($lanes);
-		
-		$this->Ro_Pi($lanes);	
-		
-		$this->Ji($lanes);
-		
-		$this->Iota($lanes,$LFSRstate);	
+		$this->Theta($lanes);		
+		$this->Ro_Pi($lanes);			
+		$this->Ji($lanes);		
+		$this->Iota($lanes,$LFSRstate[$round]);	
 		}
 	
 	return implode($lanes);	
