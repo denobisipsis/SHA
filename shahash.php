@@ -28,6 +28,12 @@ $x->sha3("512",$message)
 $x->sha3("SHAKE128",$message)
 $x->sha3("SHAKE256",$message)
 
+$x->KMAC128($K, $X, $L, $S) , KMAC256, KMACXOF128, KMACXOF256
+
+TupleHash128($X, $L, $S), TupleHash256, TupleHashXOF128, TupleHashXOF256
+
+ParallelHash128($X, $B, $L, $S), ParallelHash256, ParallelHashXOF128, ParallelHashXOF256
+
 @denobisipsis
 */
 class SHA
@@ -688,7 +694,263 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	
 	return implode($lanes);	
 	}
- 	
+
+
+/*
+SHA-3 Derived Functions
+
+cSHAKE, KMAC, TupleHash and ParallelHash
+
+https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-185.pdf
+
+Tested with vectors from
+
+https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
+*/
+
+   function toBin($string)
+   	{
+	$bin="";$chars = unpack("C*",$string);
+	foreach ($chars as $char) $bin.=sprintf("%08b",$char);
+	return $bin;	   
+	}
+
+   function fromBin($bin)
+   	{
+	$hex="";$bin=str_split($bin,8);
+	foreach ($bin as $byte) $hex.=sprintf("%02s",dechex(bindec($byte)));	
+	return $hex;   
+	}
+		
+   function left_encode($x)
+	{
+	// $x < 2**2040
+
+	    if (($x >= 0) and ($x < PHP_INT_MAX))
+	    	{
+	        $x_bin = decbin($x);
+	
+	        while ((strlen($x_bin) % 8) != 0)
+	            $x_bin = '0'.$x_bin;
+		    		
+	        $n_bin = sprintf("%08b",strlen($x_bin)/8);
+			
+	        return $n_bin.$x_bin;
+		}
+	    else
+	        die('-1 < x (left_encode) < PHP_INT_MAX');
+	}
+	  
+   function right_encode($x)
+	{
+	$renc = $this->left_encode($x);
+	return substr($renc,8).substr($renc,0,8);
+	}
+		
+   function encode_string($S)
+	{
+	    /*	        
+	        The encode_string function is used to encode bit strings in a way that may be parsed unambiguously from the beginning of the string S.
+	        
+	        Args:
+	        S: the input ascii string
+	        
+	        Returns:
+	        U: binary string
+	    */	    
+	    if ($S!="")	    		    	
+	        $S = $this->toBin($S);	
+					
+	    if ((strlen($S) >= 0) and (strlen($S) < 2040))
+	        return $this->left_encode(strlen($S)).$S;
+	    else
+	        die('-1 < strlen(S) (encode_string) < 2040');
+	}
+		
+   function bytepad($X, $w)
+	{
+	    /*	        
+	        The bytepad(X, w) function prepends an encoding of the integer w to an input string X, 
+		then pads the result with zeros until it is a byte string whose length in bytes is a multiple of w. 
+		In general, bytepad is intended to be used on encoded strings-the byte string bytepad(encode_string(S), w) 
+		can be parsed unambiguously from its beginning, whereas bytepad does not provide unambiguous padding for all input strings.
+	        
+	        Args:
+	        X: the input binary string
+	        w: the rate (in bytes) of the KECCAK sponge function
+	        
+	        Returns:
+	        z: binary string
+	    */
+	    if ($w > 0)
+	    	{
+	        $X = $this->left_encode($w).$X;
+	        while (((strlen($X) / 8) % $w) != 0)
+	            $X .= '00000000';		  	
+	        return $this->fromBin($X);
+		}
+	    else
+	        die('0 < x (bytepad)');
+	}
+
+/*
+KMAC-KECCAK Message Authentication Code 
+
+• K is a key bit string of any length, including zero.
+• X is the main input bit string. It may be of any length, including zero.
+• L is an integer representing the requested output length8 in bits.
+• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string.
+*/	
+   function KMAC128($K, $X, $L, $S)
+   	{	
+	$newX = $this->bytepad($this->encode_string($K),168).bin2hex($X).$this->fromBin($this->right_encode($L));	
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "KMAC", $S);	
+	}
+
+   function KMAC256($K, $X, $L, $S)
+   	{
+	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
+	$newX = $this->bytepad($this->encode_string($K), 136).bin2hex($X).$this->fromBin($this->right_encode($L));
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "KMAC", $S);	
+	}
+
+   function KMACXOF128($K, $X, $L, $S)
+   	{	
+	$newX = $this->bytepad($this->encode_string($K),168).bin2hex($X).$this->fromBin($this->right_encode(0));	
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "KMAC", $S);	
+	}
+
+   function KMACXOF256($K, $X, $L, $S)
+   	{
+	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
+	$newX = $this->bytepad($this->encode_string($K), 136).bin2hex($X).$this->fromBin($this->right_encode(0));
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "KMAC", $S);	
+	}
+
+/*
+TupleHash
+
+• X is a tuple of zero or more bit strings, any or all of which may be an empty string.
+• L is an integer representing the requested output length in bits.
+• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string
+*/
+
+   function TupleHash128($X, $L, $S)
+   	{
+	$z = "";
+	$n = sizeof($X);
+	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
+	$newX = $z.$this->fromBin($this->right_encode($L));		
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "TupleHash", $S);	
+	}
+
+   function TupleHash256($X, $L, $S)
+   	{
+	$z = "";
+	$n = sizeof($X);
+	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
+	$newX = $z.$this->fromBin($this->right_encode($L));		
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "TupleHash", $S);	
+	}
+
+   function TupleHashXOF128($X, $L, $S)
+   	{
+	$z = "";
+	$n = sizeof($X);
+	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
+	$newX = $z.$this->fromBin($this->right_encode(0));		
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "TupleHash", $S);	
+	}
+
+   function TupleHashXOF256($X, $L, $S)
+   	{
+	$z = "";
+	$n = sizeof($X);
+	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
+	$newX = $z.$this->fromBin($this->right_encode(0));		
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "TupleHash", $S);	
+	}
+
+/*
+ParallelHash 
+• X is the main input bit string. It may be of any length11, including zero.
+• B is the block size in bytes for parallel hashing. It may be any integer such that 0 < B < 22040.
+• L is an integer representing the requested output length in bits.
+• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string.
+*/	
+
+   function ParallelHash128($X, $B, $L, $S)
+   	{
+	$n = ceil(strlen($X) / $B);
+	$z = $this->fromBin($this->left_encode($B));
+	for ($i = 0;$i < $n;$i++)		
+		$z .= $this->cSHAKE128(substr($X, $i*$B, $B), 256/8, "", "");		
+	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode($L));
+	$newX = $z;
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "ParallelHash", $S);	
+	}
+
+   function ParallelHash256($X, $B, $L, $S)
+   	{
+	$n = ceil(strlen($X) / $B);
+	$z = $this->fromBin($this->left_encode($B));	
+	for ($i = 0;$i < $n;$i++)
+		$z .= $this->cSHAKE256(substr($X, $i*$B, $B), 512/8, "", "");
+	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode($L));
+	$newX = $z;
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "ParallelHash", $S);	
+	}
+
+   function ParallelHashXOF128($X, $B, $L, $S)
+   	{
+	$n = ceil(strlen($X) / $B);
+	$z = $this->fromBin($this->left_encode($B));	
+	for ($i = 0;$i<$n;$i++)
+		$z .= $this->cSHAKE128(substr($X, $i*$B*8, $B), 256/8, "", "");
+	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode(0));
+	$newX = $z;
+	return $this->cSHAKE128(pack("H*",$newX), $L/8, "ParallelHash", $S);	
+	}
+
+   function ParallelHashXOF256($X, $B, $L, $S)
+   	{
+	$n = ceil(strlen($X) / $B);
+	$z = $this->fromBin($this->left_encode($B));	
+	for ($i = 0;$i<$n;$i++)
+		$z .= $this->cSHAKE256(substr($X, $i*$B, $B), 512/8, "", "");
+	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode(0));
+	$newX = $z;
+	return $this->cSHAKE256(pack("H*",$newX), $L/8, "ParallelHash", $S);	
+	}
+			
+   function cSHAKE128($stream, $outputl, $N, $S)
+	{
+	/*      
+	        N is a function-name bit string, used by NIST to define functions based on cSHAKE. When no function other than cSHAKE is desired, 
+		N is set to the empty string
+	        S is a customization bit string. The user selects this string to define a variant of the function. When no customization is desired, 
+		S is set to the empty string5
+	*/
+	if (($N == '') and ($S == ''))
+		return $this->sha3_process($stream,1344, 0x1f,$outputl);
+	else
+	    	{
+	        $n = $this->bytepad($this->encode_string($N).$this->encode_string($S), 168);
+	        return $this->sha3_process(pack("H*",$n).$stream,1344,0x04,$outputl);
+		}
+	}
+
+   function cSHAKE256($stream, $outputl, $N, $S)
+	{
+	if (($N == '') and ($S == ''))
+		return $this->sha3_process($stream,1088, 0x1f,$outputl);
+	else
+	    	{
+	        $n = $this->bytepad($this->encode_string($N).$this->encode_string($S), 136);	
+		return $this->sha3_process(pack("H*",$n).$stream,1088,0x04,$outputl);
+		}
+	}
+		
    function sha3($type,$stream,$outputl=0) 
    	{
 	// sha3_process($stream,$rate,$suffix,$sizeoutput=0)
