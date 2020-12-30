@@ -1,5 +1,5 @@
 # SHA
-Pure SHA-hashes (SHA1...SHA512,SHA3,cSHAKE,KMAC,TupleHash,ParallelHash)
+Pure SHA-hashes (SHA1...SHA512,SHA3,cSHAKE,KMAC,TupleHash,ParallelHash,KangarooTwelve,MarsupilamiFourteen)
 
 Based on:
 Publication Number: FIPS 180-4
@@ -50,10 +50,11 @@ $x->sha3("512",$message)
 $x->sha3("SHAKE128",$message)
 $x->sha3("SHAKE256",$message)
 
-
+$x->CSHAKE128($stream, $outputl, $N, $S), 256
 $x->KMAC128($K, $X, $L, $S) , KMAC256, KMACXOF128, KMACXOF256
+$x->TupleHash128($X, $L, $S), TupleHash256, TupleHashXOF128, TupleHashXOF256
+$x->ParallelHash128($X, $B, $L, $S), ParallelHash256, ParallelHashXOF128, ParallelHashXOF256
+$x->KangarooTwelve($stream, $S, $L, $MLEN)
+$x->MarsupilamiFourteen($stream, $S, $L, $MLEN)
 
-TupleHash128($X, $L, $S), TupleHash256, TupleHashXOF128, TupleHashXOF256
-
-ParallelHash128($X, $B, $L, $S), ParallelHash256, ParallelHashXOF128, ParallelHashXOF256
 @denobisipsis
