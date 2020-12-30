@@ -28,11 +28,17 @@ $x->sha3("512",$message)
 $x->sha3("SHAKE128",$message)
 $x->sha3("SHAKE256",$message)
 
+$x->CSHAKE128($stream, $outputl, $N, $S), 256
+
 $x->KMAC128($K, $X, $L, $S) , KMAC256, KMACXOF128, KMACXOF256
 
-TupleHash128($X, $L, $S), TupleHash256, TupleHashXOF128, TupleHashXOF256
+$x->TupleHash128($X, $L, $S), TupleHash256, TupleHashXOF128, TupleHashXOF256
 
-ParallelHash128($X, $B, $L, $S), ParallelHash256, ParallelHashXOF128, ParallelHashXOF256
+$x->ParallelHash128($X, $B, $L, $S), ParallelHash256, ParallelHashXOF128, ParallelHashXOF256
+
+$x->KangarooTwelve($stream, $S, $L, $MLEN)
+
+$x->MarsupilamiFourteen($stream, $S, $L, $MLEN)
 
 @denobisipsis
 */
@@ -57,10 +63,10 @@ class SHA
     	{return ($x & $y) ^ ($x & $z) ^ ($y & $z);}
 		
     function sum($x,$a,$b,$c,$bits=32)
-    	{return $this->ROTR($a,$x,$bits) ^ ($this->ROTR($b,$x,$bits) ^ $this->ROTR($c,$x,$bits)); }
+    	{return self::ROTR($a,$x,$bits) ^ (self::ROTR($b,$x,$bits) ^ self::ROTR($c,$x,$bits)); }
 
     function s($x,$a,$b,$c,$bits=32)
-    	{return $this->ROTR($a,$x,$bits) ^ ($this->ROTR($b,$x,$bits) ^ $this->SHR($c,$x));}
+    	{return self::ROTR($a,$x,$bits) ^ (self::ROTR($b,$x,$bits) ^ self::SHR($c,$x));}
 	    		
     function padding($stream,$sha)
     	{
@@ -121,7 +127,7 @@ class SHA
 	if (hexdec(bin2hex($stream))==0) 
 		$stream="";
 		
-	$stream   = $this->padding($stream,$sha);      
+	$stream   = self::padding($stream,$sha);      
         $n_blocks = $n = ceil(sizeof($stream) / 16);
 	
 	$M = array();
@@ -134,7 +140,7 @@ class SHA
     function process_block_1($block)
     	{
         for ($t = 16;$t < 80;$t++)
-            $block []=$this->ROTL(1, $block[$t-3] ^ $block[$t-8] ^ $block[$t-14] ^ $block[$t-16]) & $this->MASK;
+            $block []=self::ROTL(1, $block[$t-3] ^ $block[$t-8] ^ $block[$t-14] ^ $block[$t-16]) & $this->MASK;
 
         [$a, $b, $c, $d, $e] = $this->H1;
 	
@@ -144,16 +150,16 @@ class SHA
 	    {
 	    switch (($case=floor($t / 20)))
 	    	{
-		 case 0:  	$f = $this->Ch($b,$c,$d); break;
-		 case 1:	$f = $this->Parity($b,$c,$d); break;
-		 case 2:	$f = $this->Maj($b,$c,$d);break;
-		 default:	$f = $this->Parity($b,$c,$d); break;		    
+		 case 0:  	$f = self::Ch($b,$c,$d); break;
+		 case 1:	$f = self::Parity($b,$c,$d); break;
+		 case 2:	$f = self::Maj($b,$c,$d);break;
+		 default:	$f = self::Parity($b,$c,$d); break;		    
 		}
 		
-            $T = ($this->ROTL(5, $a) + $f + $e + gmp_init($K[$case]) + gmp_init("$block[$t]")) & $this->MASK;
+            $T = (self::ROTL(5, $a) + $f + $e + gmp_init($K[$case]) + gmp_init("$block[$t]")) & $this->MASK;
             $e = $d;
             $d = $c;
-            $c = $this->ROTL(30, $b) & $this->MASK;
+            $c = self::ROTL(30, $b) & $this->MASK;
             $b = $a;
             $a = $T;
 	    }
@@ -165,15 +171,15 @@ class SHA
     function process_block_256($block)
     	{	
         for ($t = 16;$t < 64;$t++)
-            $block []=($this->s($block[$t-2],17,19,10) + $block[$t-7] +  
-	    	$this->s($block[$t-15],7,18,3) + $block[$t-16]) & $this->MASK;
+            $block []=(self::s($block[$t-2],17,19,10) + $block[$t-7] +  
+	    	self::s($block[$t-15],7,18,3) + $block[$t-16]) & $this->MASK;
 
         [$a, $b, $c, $d, $e, $f, $g, $h] = $this->H256;
 				
         for ($t = 0;$t < 64;$t++)
 	    {		
-            $T1 = ($this->sum($e,6,11,25) + $this->Ch($e,$f,$g) + $h + $this->K[$t] + gmp_init("$block[$t]"));
-	    $T2 = ($this->sum($a,2,13,22) + $this->Maj($a,$b,$c));
+            $T1 = self::sum($e,6,11,25) + self::Ch($e,$f,$g) + $h + $this->K[$t] + gmp_init("$block[$t]");
+	    $T2 = self::sum($a,2,13,22) + self::Maj($a,$b,$c);
 	    $h = $g;
 	    $g = $f;
 	    $f = $e;
@@ -191,15 +197,15 @@ class SHA
     function process_block_512($block)
     	{
         for ($t = 16;$t < 80;$t++)	    
-	    $block[]=($this->s($block[$t-2],19,61,6,64) + $block[$t-7] +  
-	    	$this->s($block[$t-15],1,8,7,64) + $block[$t-16]) & $this->MASK;	    
+	    $block[]=(self::s($block[$t-2],19,61,6,64) + $block[$t-7] +  
+	    	self::s($block[$t-15],1,8,7,64) + $block[$t-16]) & $this->MASK;	    
 	    	
         [$a, $b, $c, $d, $e, $f, $g, $h] = $this->H512;
 			    	
         for ($t = 0;$t < 80;$t++)
 	    {		
-            $t1 = $this->sum($e,14,18,41,64) + $this->Ch($e,$f,$g) + $h + $this->K[$t] + gmp_init("$block[$t]") ;
-	    $t2 = $this->sum($a,28,34,39,64) + $this->Maj($a,$b,$c);
+            $t1 = self::sum($e,14,18,41,64) + self::Ch($e,$f,$g) + $h + $this->K[$t] + gmp_init("$block[$t]") ;
+	    $t2 = self::sum($a,28,34,39,64) + self::Maj($a,$b,$c);
 	    	    
 	    $h = $g;
 	    $g = $f;
@@ -223,10 +229,10 @@ class SHA
 		$this->H1[$k] = gmp_init($this->H1[$k]);
 		
 	$this->MASK = gmp_init("0xFFFFFFFF");   
-        $stream = $this->prepare($stream,1);
+        $stream = self::prepare($stream,1);
 		
         foreach ($stream as $block)
-        	$this->process_block_1($block);
+        	self::process_block_1($block);
 	
 	$sha1="";foreach ($this->H1 as $s) $sha1 .=sprintf("%08x",$s);
 	
@@ -238,7 +244,7 @@ class SHA
 	$this->H256 = ["0xc1059ed8","0x367cd507","0x3070dd17","0xf70e5939",
 	               "0xffc00b31","0x68581511","0x64f98fa7","0xbefa4fa4"];
 	
-	return $this->sha256_224($stream,'224');
+	return self::sha256_224($stream,'224');
 	}
 	
     function sha256($stream)
@@ -246,7 +252,7 @@ class SHA
 	$this->H256 = ["0x6a09e667","0xbb67ae85","0x3c6ef372","0xa54ff53a",
 	               "0x510e527f","0x9b05688c","0x1f83d9ab","0x5be0cd19"];
 
-	return $this->sha256_224($stream);
+	return self::sha256_224($stream);
 	}
 
     function sha256_224($stream,$bits=256)
@@ -274,10 +280,10 @@ class SHA
 		
 	$this->MASK = gmp_init("0xFFFFFFFF");
 	
-        $stream = $this->prepare($stream,1);
+        $stream = self::prepare($stream,1);
 
         foreach ($stream as $block)
-        	$this->process_block_256($block);
+        	self::process_block_256($block);
 		
 	$sha256="";foreach ($this->H256 as $s) $sha256 .=sprintf("%08x",$s);
 		
@@ -313,12 +319,12 @@ class SHA
 
     function sha512t($stream,$t)
     	{
-	$this->H512 = str_split($this->generate_512_t($t),16);
+	$this->H512 = str_split(self::generate_512_t($t),16);
 
 	foreach ($this->H512 as &$iv)
 		$iv = "0x$iv";
 	
-	return $this->sha512_384($stream,$t);	    
+	return self::sha512_384($stream,$t);	    
 	}
 					
     function sha384($stream)
@@ -326,7 +332,7 @@ class SHA
 	$this->H512 = ["0xcbbb9d5dc1059ed8","0x629a292a367cd507","0x9159015a3070dd17","0x152fecd8f70e5939",
 	               "0x67332667ffc00b31","0x8eb44a8768581511","0xdb0c2e0d64f98fa7","0x47b5481dbefa4fa4"];
 	
-	return $this->sha512_384($stream,'384');
+	return self::sha512_384($stream,'384');
 	}
 		
     function sha512($stream)
@@ -334,7 +340,7 @@ class SHA
 	$this->H512 = ["0x6a09e667f3bcc908","0xbb67ae8584caa73b","0x3c6ef372fe94f82b","0xa54ff53a5f1d36f1",
 		       "0x510e527fade682d1","0x9b05688c2b3e6c1f","0x1f83d9abfb41bd6b","0x5be0cd19137e2179"];
 	
-	return $this->sha512_384($stream);
+	return self::sha512_384($stream);
 	}
 
     function generate_512_t($t)
@@ -350,7 +356,7 @@ class SHA
 	for ($i = 0;$i<8;$i++)		
 		$this->H512[$i] = "0x".bin2hex(gmp_export(gmp_xor($H512[$i] , gmp_init("0xa5a5a5a5a5a5a5a5"))));
 				
-	return $this->sha512_384("SHA-512/$t");    
+	return self::sha512_384("SHA-512/$t");    
 	}
 	
     function sha512_384($stream,$bits=512)
@@ -389,10 +395,10 @@ class SHA
 	for ($k=0;$k<8;$k++)
 		$this->H512[$k] = gmp_init($this->H512[$k]);
 								  
-        $stream = $this->prepare($stream,512);
+        $stream = self::prepare($stream,512);
   
         foreach ($stream as $block)
-        	$this->process_block_512($block);
+        	self::process_block_512($block);
 		
 	$sha512="";foreach ($this->H512 as $s) $sha512 .=sprintf("%016s",bin2hex(gmp_export($s)));
 	
@@ -437,61 +443,6 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	$lane[0] = chr(ord($lane[0]) | $carry);	
 	return $lane;	
 	}
-	
-    function sha3_process($stream,$rate,$suffix,$sizeoutput=0) 
-    	{
-	/*
-	In the sponge construction, 
-	
-	rate is the number of input bits processed or output
-	bits generated per invocation of the underlying function
-	
-	capacity the width of the underlying function minus the
-	rate
-	*/
-			
-	$state 	= str_repeat ("\0", 200);
-	$rate  /= 8;
-	
-	/*
-	State: An array of bits that is repeatedly updated within a computational
-	procedure. For a KECCAK-p permutation, the state is represented either as
-	a three-dimensional array or as a bit string
-	
-	multi-rate padding The padding rule pad10*1, whose output is a 1, followed by a (possibly
-	empty) string of 0s, followed by a 1.	
-
-	process blocks of bytes=rate
-	*/
-	
-	if (hexdec(bin2hex($stream))==0) 
-		$stream="";
-	
-	$blocks = str_split($stream,$rate);
-		
-	if (strlen($stream) % $rate == 0 and $stream!="") 
-		$blocks[]="";
-	
-	for ($k=0;$k<sizeof($blocks)-1;$k++)
-		{
-		for ($i = 0; $i < $rate; $i++) 
-			$state[$i]=$state[$i] ^ $blocks[$k][$i];
-		$state=$this->keccak_p($state);			
-		}
-	
-	// pad only the last block
-	
-	$stream = $blocks[sizeof($blocks)-1];				
-	$length = strlen($stream);
-		
-	for ($i = 0; $i < $length; $i++) 
-		$state[$i]=$state[$i] ^ $stream[$i];		
-		
-	$state[$length]   = $state[$length] ^ chr($suffix);
-	$state[$rate - 1] = $state[$rate - 1] ^ "\x80";
-	
-	return bin2hex(substr($this->keccak_p($state),0,$sizeoutput));		
-	}
     
     function Theta(&$lanes)
     	{
@@ -526,7 +477,7 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	for ($x=0;$x<5;$x++) 
 		{
 		// Compute the ? effect for a given column			
-		$D=$C[($x+4)%5] ^ $this->rotLeft64($C[($x+1)%5],1);
+		$D=$C[($x+4)%5] ^ self::rotLeft64($C[($x+1)%5],1);
 		// Add the ? effect to the whole column
 		for ($y=0;$y<25;$y+=5) 			
 			$lanes[$x+$y]^= $D;			
@@ -568,7 +519,7 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 
 		$pos=$x+5*$y;
 		// Swap current and state(x,y), and rotate		
-		[$actual,$lanes[$pos]]=[$lanes[$pos],$this->rotLeft64($actual,(($t+1)*($t+2)/2)%64)];
+		[$actual,$lanes[$pos]]=[$lanes[$pos],self::rotLeft64($actual,(($t+1)*($t+2)/2)%64)];
 		}
 	}
 
@@ -645,7 +596,7 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 		if ($LFSRstate[$j]) $lanes[0] ^= $RC[$j];
 	}
 			
-    function keccak_p($state) 
+    function keccak_p($state,$rounds=0) 
     	{
 	/*
 	KECCAK is the family of all sponge functions with a KECCAK-f permutation as the
@@ -681,48 +632,48 @@ https://csrc.nist.gov/projects/cryptographic-algorithm-validation-program/secure
 	A[x, y, z]=S[w(5y+x)+z].	
 	*/
 	
-	for ($round=0;$round<24;$round++) 
+	for ($round=$rounds;$round<24;$round++) 
 		{
 		/*
 		The five step mappings that comprise a round of KECCAK-p[b, nr] are denoted by ?, ?, p, ?, and ?.
 		*/		
-		$this->Theta($lanes);		
-		$this->Ro_Pi($lanes);			
-		$this->Ji($lanes);		
-		$this->Iota($lanes,$LFSRstate[$round]);	
+		self::Theta($lanes);		
+		self::Ro_Pi($lanes);			
+		self::Ji($lanes);		
+		self::Iota($lanes,$LFSRstate[$round])
 		}
 	
 	return implode($lanes);	
 	}
 
 
-/*
-SHA-3 Derived Functions
+	/*
+	SHA-3 Derived Functions
+	
+	cSHAKE, KMAC, TupleHash and ParallelHash
+	
+	https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-185.pdf
+	
+	Tested with vectors from
+	
+	https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
+	*/
 
-cSHAKE, KMAC, TupleHash and ParallelHash
-
-https://nvlpubs.nist.gov/nistpubs/specialpublications/nist.sp.800-185.pdf
-
-Tested with vectors from
-
-https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
-*/
-
-   function toBin($string)
+    function toBin($string)
    	{
 	$bin="";$chars = unpack("C*",$string);
 	foreach ($chars as $char) $bin.=sprintf("%08b",$char);
 	return $bin;	   
 	}
 
-   function fromBin($bin)
+    function fromBin($bin)
    	{
 	$hex="";$bin=str_split($bin,8);
 	foreach ($bin as $byte) $hex.=sprintf("%02s",dechex(bindec($byte)));	
 	return $hex;   
 	}
 		
-   function left_encode($x)
+    function left_encode($x)
 	{
 	// $x < 2**2040
 
@@ -741,16 +692,16 @@ https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
 	        die('-1 < x (left_encode) < PHP_INT_MAX');
 	}
 	  
-   function right_encode($x)
+    function right_encode($x)
 	{
-	$renc = $this->left_encode($x);
+	$renc = self::left_encode($x);
 	return substr($renc,8).substr($renc,0,8);
 	}
 		
-   function encode_string($S)
+    function encode_string($S)
 	{
 	    /*	        
-	        The encode_string function is used to encode bit strings in a way that may be parsed unambiguously from the beginning of the string S.
+	        The encode_string function is used to encode bit strings in a way that may be parsed unambiguously from the 	beginning of the string S.
 	        
 	        Args:
 	        S: the input ascii string
@@ -758,22 +709,19 @@ https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
 	        Returns:
 	        U: binary string
 	    */	    
-	    if ($S!="")	    		    	
-	        $S = $this->toBin($S);	
+	    if ($S != "")	    		    	
+	        $S = self::toBin($S);	
 					
 	    if ((strlen($S) >= 0) and (strlen($S) < 2040))
-	        return $this->left_encode(strlen($S)).$S;
+	        return self::left_encode(strlen($S)).$S;
 	    else
 	        die('-1 < strlen(S) (encode_string) < 2040');
 	}
 		
-   function bytepad($X, $w)
+    function bytepad($X, $w)
 	{
 	    /*	        
-	        The bytepad(X, w) function prepends an encoding of the integer w to an input string X, 
-		then pads the result with zeros until it is a byte string whose length in bytes is a multiple of w. 
-		In general, bytepad is intended to be used on encoded strings-the byte string bytepad(encode_string(S), w) 
-		can be parsed unambiguously from its beginning, whereas bytepad does not provide unambiguous padding for all input strings.
+	        The bytepad(X, w) function prepends an encoding of the integer w to an input string X, then pads the result with zeros until it is a byte string whose length in bytes is a multiple of w. In general, bytepad is intended to be used on encoded strings-the byte string bytepad(encode_string(S), w) can be parsed unambiguously from its beginning, whereas bytepad does not provide unambiguous padding for all input strings.
 	        
 	        Args:
 	        X: the input binary string
@@ -784,193 +732,311 @@ https://github.com/damaki/libkeccak/tree/master/tests/kat/testvectors
 	    */
 	    if ($w > 0)
 	    	{
-	        $X = $this->left_encode($w).$X;
+	        $X = self::left_encode($w).$X;
 	        while (((strlen($X) / 8) % $w) != 0)
 	            $X .= '00000000';		  	
-	        return $this->fromBin($X);
+	        return self::fromBin($X);
 		}
 	    else
 	        die('0 < x (bytepad)');
 	}
 
-/*
-KMAC-KECCAK Message Authentication Code 
+	/*
+	KMAC-KECCAK Message Authentication Code 
+	
+	• K is a key bit string of any length, including zero.
+	• X is the main input bit string. It may be of any length, including zero.
+	• L is an integer representing the requested output length8 in bits.
+	• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set 	to the empty string.
+	*/
 
-• K is a key bit string of any length, including zero.
-• X is the main input bit string. It may be of any length, including zero.
-• L is an integer representing the requested output length8 in bits.
-• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string.
-*/	
-   function KMAC128($K, $X, $L, $S)
-   	{	
-	$newX = $this->bytepad($this->encode_string($K),168).bin2hex($X).$this->fromBin($this->right_encode($L));	
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "KMAC", $S);	
-	}
-
-   function KMAC256($K, $X, $L, $S)
+    function KMAC($K, $X, $L, $S)
    	{
-	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
-	$newX = $this->bytepad($this->encode_string($K), 136).bin2hex($X).$this->fromBin($this->right_encode($L));
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "KMAC", $S);	
-	}
-
-   function KMACXOF128($K, $X, $L, $S)
-   	{	
-	$newX = $this->bytepad($this->encode_string($K),168).bin2hex($X).$this->fromBin($this->right_encode(0));	
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "KMAC", $S);	
-	}
-
-   function KMACXOF256($K, $X, $L, $S)
-   	{
-	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
-	$newX = $this->bytepad($this->encode_string($K), 136).bin2hex($X).$this->fromBin($this->right_encode(0));
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "KMAC", $S);	
-	}
-
-/*
-TupleHash
-
-• X is a tuple of zero or more bit strings, any or all of which may be an empty string.
-• L is an integer representing the requested output length in bits.
-• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string
-*/
-
-   function TupleHash128($X, $L, $S)
-   	{
-	$z = "";
-	$n = sizeof($X);
-	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
-	$newX = $z.$this->fromBin($this->right_encode($L));		
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "TupleHash", $S);	
-	}
-
-   function TupleHash256($X, $L, $S)
-   	{
-	$z = "";
-	$n = sizeof($X);
-	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
-	$newX = $z.$this->fromBin($this->right_encode($L));		
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "TupleHash", $S);	
-	}
-
-   function TupleHashXOF128($X, $L, $S)
-   	{
-	$z = "";
-	$n = sizeof($X);
-	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
-	$newX = $z.$this->fromBin($this->right_encode(0));		
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "TupleHash", $S);	
-	}
-
-   function TupleHashXOF256($X, $L, $S)
-   	{
-	$z = "";
-	$n = sizeof($X);
-	for ($i = 0;$i<$n;$i++) $z .= $this->fromBin($this->encode_string($X[$i]));
-	$newX = $z.$this->fromBin($this->right_encode(0));		
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "TupleHash", $S);	
-	}
-
-/*
-ParallelHash 
-• X is the main input bit string. It may be of any length11, including zero.
-• B is the block size in bytes for parallel hashing. It may be any integer such that 0 < B < 22040.
-• L is an integer representing the requested output length in bits.
-• S is an optional customization bit string of any length, including zero. If no customization is desired, S is set to the empty string.
-*/	
-
-   function ParallelHash128($X, $B, $L, $S)
-   	{
-	$n = ceil(strlen($X) / $B);
-	$z = $this->fromBin($this->left_encode($B));
-	for ($i = 0;$i < $n;$i++)		
-		$z .= $this->cSHAKE128(substr($X, $i*$B, $B), 256/8, "", "");		
-	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode($L));
-	$newX = $z;
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "ParallelHash", $S);	
-	}
-
-   function ParallelHash256($X, $B, $L, $S)
-   	{
-	$n = ceil(strlen($X) / $B);
-	$z = $this->fromBin($this->left_encode($B));	
-	for ($i = 0;$i < $n;$i++)
-		$z .= $this->cSHAKE256(substr($X, $i*$B, $B), 512/8, "", "");
-	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode($L));
-	$newX = $z;
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "ParallelHash", $S);	
-	}
-
-   function ParallelHashXOF128($X, $B, $L, $S)
-   	{
-	$n = ceil(strlen($X) / $B);
-	$z = $this->fromBin($this->left_encode($B));	
-	for ($i = 0;$i<$n;$i++)
-		$z .= $this->cSHAKE128(substr($X, $i*$B*8, $B), 256/8, "", "");
-	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode(0));
-	$newX = $z;
-	return $this->cSHAKE128(pack("H*",$newX), $L/8, "ParallelHash", $S);	
-	}
-
-   function ParallelHashXOF256($X, $B, $L, $S)
-   	{
-	$n = ceil(strlen($X) / $B);
-	$z = $this->fromBin($this->left_encode($B));	
-	for ($i = 0;$i<$n;$i++)
-		$z .= $this->cSHAKE256(substr($X, $i*$B, $B), 512/8, "", "");
-	$z .= $this->fromBin($this->right_encode($n)).$this->fromBin($this->right_encode(0));
-	$newX = $z;
-	return $this->cSHAKE256(pack("H*",$newX), $L/8, "ParallelHash", $S);	
+	$bits = $this->Phashbits*4;	
+	$newX = self::bytepad(self::encode_string($K),200-($bits/4)).bin2hex($X).self::fromBin(self::right_encode($this->XOF));	
+	return self::{"cSHAKE$bits"}(pack("H*",$newX), $L/8, "KMAC", $S);	
 	}
 			
-   function cSHAKE128($stream, $outputl, $N, $S)
-	{
-	/*      
-	        N is a function-name bit string, used by NIST to define functions based on cSHAKE. When no function other than cSHAKE is desired, 
-		N is set to the empty string
-	        S is a customization bit string. The user selects this string to define a variant of the function. When no customization is desired, 
-		S is set to the empty string5
-	*/
-	if (($N == '') and ($S == ''))
-		return $this->sha3_process($stream,1344, 0x1f,$outputl);
-	else
-	    	{
-	        $n = $this->bytepad($this->encode_string($N).$this->encode_string($S), 168);
-	        return $this->sha3_process(pack("H*",$n).$stream,1344,0x04,$outputl);
-		}
+    function KMAC128($K, $X, $L, $S)
+   	{
+	$this->Phashbits=32;
+	$this->XOF=$L;
+	return self::KMAC($K, $X, $L, $S);	
 	}
 
-   function cSHAKE256($stream, $outputl, $N, $S)
+    function KMAC256($K, $X, $L, $S)
+   	{
+	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
+	$this->Phashbits=64;
+	$this->XOF=$L;
+	return self::KMAC($K, $X, $L, $S);	
+	}
+
+    function KMACXOF128($K, $X, $L, $S)
+   	{	
+	$this->Phashbits=32;
+	$this->XOF=0;
+	return self::KMAC($K, $X, $L, $S);	
+	}
+
+    function KMACXOF256($K, $X, $L, $S)
+   	{
+	//Validity Conditions: len(K) < 22040 and 0 ≤ L < 22040 and len(S) < 22040
+	$this->Phashbits=64;
+	$this->XOF=0;
+	return self::KMAC($K, $X, $L, $S);	
+	}
+
+	/*
+	TupleHash
+	
+	• X is a tuple of zero or more bit strings, any or all of which may be an empty string.
+	• L is an integer representing the requested output length in bits.
+	• S is an optional customization bit string of any length, including zero. If no customization is desired	, S is set to the empty string
+	*/
+
+    function TupleHash($X, $L, $S)
+   	{
+	$bits = $this->Phashbits*4;
+	$z = "";
+	$n = sizeof($X);
+	for ($i = 0;$i<$n;$i++) $z .= self::fromBin(self::encode_string($X[$i]));
+	$newX = $z.self::fromBin(self::right_encode($this->XOF));		
+	return self::{"cSHAKE$bits"}(pack("H*",$newX), $L/8, "TupleHash", $S);	
+	}
+	   
+    function TupleHash128($X, $L, $S)
+   	{
+	$this->Phashbits=32;
+	$this->XOF=$L;
+	return self::TupleHash($X, $L, $S);	
+	}
+
+    function TupleHash256($X, $L, $S)
+   	{
+	$this->Phashbits=64;
+	$this->XOF=$L;
+	return self::TupleHash($X, $L, $S);	
+	}
+
+    function TupleHashXOF128($X, $L, $S)
+   	{
+	$this->Phashbits=32;
+	$this->XOF=0;
+	return self::TupleHash($X, $L, $S);	
+	}
+
+    function TupleHashXOF256($X, $L, $S)
+   	{
+	$this->Phashbits=64;
+	$this->XOF=0;
+	return self::TupleHash($X, $L, $S);	
+	}
+
+	/*
+	ParallelHash 
+	• X is the main input bit string. It may be of any length11, including zero.
+	• B is the block size in bytes for parallel hashing. It may be any integer such that 0 < B < 22040.
+	• L is an integer representing the requested output length in bits.
+	• S is an optional customization bit string of any length, including zero. If no customization is desired	, S is set to the empty string.
+	*/	
+   
+    function ParallelHash($X, $B, $L, $S)
+   	{
+	$bits = $this->Phashbits*4;
+	$n = ceil(strlen($X) / $B);
+	$z = self::fromBin(self::left_encode($B));
+	for ($i = 0;$i < $n;$i++)		
+		$z .= self::{"cSHAKE$bits"}(substr($X, $i*$B, $B), $this->Phashbits, "", "");		
+	$z .= self::fromBin(self::right_encode($n)).self::fromBin(self::right_encode($this->XOF));
+	$newX = $z;
+	return self::{"cSHAKE$bits"}(pack("H*",$newX), $L/8, "ParallelHash", $S);	   
+	}
+	
+    function ParallelHash128($X, $B, $L, $S)
+   	{
+	$this->Phashbits=32;
+	$this->XOF=$L;
+	return self::ParallelHash($X, $B, $L, $S);	
+	}
+
+    function ParallelHash256($X, $B, $L, $S)
+   	{
+	$this->Phashbits=64;
+	$this->XOF=$L;
+	return self::ParallelHash($X, $B, $L, $S);	
+	}
+
+    function ParallelHashXOF128($X, $B, $L, $S)
+   	{
+	$this->Phashbits=32;
+	$this->XOF=0;
+	return self::ParallelHash($X, $B, $L, $S);	
+	}
+
+    function ParallelHashXOF256($X, $B, $L, $S)
+   	{
+	$this->Phashbits=64;
+	$this->XOF=0;
+	return self::ParallelHash($X, $B, $L, $S);	
+	}
+
+    function cSHAKE($stream, $outputl, $N, $S)
 	{
+	/*      
+	        N is a function-name bit string, used by NIST to define functions based on cSHAKE. When no 		function other than cSHAKE is desired, N is set to the empty string
+	        S is a customization bit string. The user selects this string to define a variant of the function	. When no customization is desired, S is set to the empty string5
+	*/
+	$bits = $this->Phashbits;
 	if (($N == '') and ($S == ''))
-		return $this->sha3_process($stream,1088, 0x1f,$outputl);
+		return self::F($stream,1600-($bits*8), 0x1f,$outputl,0,5);
 	else
 	    	{
-	        $n = $this->bytepad($this->encode_string($N).$this->encode_string($S), 136);	
-		return $this->sha3_process(pack("H*",$n).$stream,1088,0x04,$outputl);
+	        $n = self::bytepad(self::encode_string($N).self::encode_string($S), 200-$bits);
+	        return self::F(pack("H*",$n).$stream,1600-($bits*8),0x04,$outputl,0,5);
 		}
 	}
+				
+    function cSHAKE128($stream, $outputl, $N, $S)
+	{
+	$this->Phashbits=32;
+	return self::cSHAKE($stream, $outputl, $N, $S);	
+	}
+
+    function cSHAKE256($stream, $outputl, $N, $S)
+	{
+	$this->Phashbits=64;
+	return self::cSHAKE($stream, $outputl, $N, $S);	
+	}
+	
+    function F($stream,$rate,$suffix,$sizeoutput=0,$MLEN=0, $flag=0) 
+    	{ 
+	$state 	= str_repeat ("\0", 200);
+	$rate  /= 8;
+	
+	if ($flag==5) $irounds=0; else $irounds=12;	
+	if ($flag==1 and strlen($stream)<8192) $flag=2;	
+	if ($rate==32 and $flag!=5) $irounds=10; //Marsupilami14
+	if (bin2hex($stream)=="00") $stream="";
+			
+	$blocks = str_split($stream,$rate);
+
+	if (strlen($stream) % $rate == 0 and $stream!="" and $flag==5) 
+		$blocks[]="";
 		
-   function sha3($type,$stream,$outputl=0) 
+	//if (!sizeof($blocks)) $blocks[]="";
+	
+	# === Absorb complete blocks ===	
+	for ($k=0;$k<sizeof($blocks)-1;$k++)
+		{	 
+		for ($i = 0; $i < $rate; $i++) 
+			$state[$i]  = $state[$i] ^ $blocks[$k][$i];
+		$state=self::keccak_p($state,$irounds);			
+		}
+	
+	# === Absorb last block and treatment of padding ===
+	$stream = $blocks[sizeof($blocks)-1];				
+	$length = $l = strlen($stream);
+	
+	if (($l < $rate and !$flag) or $flag==2) $l++;
+		
+	for ($i = 0; $i < $length; $i++) 
+		$state[$i]  = $state[$i] ^ $stream[$i];		
+	
+        # === Absorb Suffix ===      
+        $state[$l]   = $state[$l] ^ chr($suffix);
+       
+        if (($suffix & 0x80) != 0 and $length == 167)
+        	$state = self::keccak_p($state,$irounds);
+        $state[$rate - 1]  = $state[$rate - 1] ^ "\x80";
+	
+	$state		   = self::keccak_p($state,$irounds);
+	
+	# Squeeze	
+	$outputBytes="";
+        while($MLEN > 0)
+		{		
+	        $blockSize = min($MLEN, $rate);
+	        $outputBytes = $outputBytes.substr($state,0,$blockSize);
+	        $MLEN = $MLEN - $blockSize;      
+	        if ($MLEN > 0)
+	            $state = self::keccak_p($state,$irounds);
+		else return bin2hex(substr($outputBytes,-$sizeoutput));	
+	        }
+    	
+	return bin2hex(substr($state,0,$sizeoutput));		
+	}
+
+    function K12M14($stream, $S, $L, $MLEN)
    	{
-	// sha3_process($stream,$rate,$suffix,$sizeoutput=0)
+        $B = 8192;
+        $c = $this->c;
+	$flag=1;
+	$renc="";
+	if (strlen($S)>0) 
+		{
+		$renc=pack("H*",self::fromBin(self::right_encode(strlen($S))));
+		$flag=3;
+		}
+						
+	$newX = $stream.$S.$renc;
+	     	     	
+    	$n = floor((strlen($newX)+$B-1)/$B);	    
+	if ($n==0) $n=1;
+	
+    	for ($i=0;$i<$n;$i++)
+        		$Si[$i]= substr($newX,$i*$B,$B);
+				
+    	if ($n < 2)	
+		return self::F($Si[0], 1600-$c, 0x07, $L, $MLEN, $flag);
+	    
+	$CVi = "";
+	for ($i=0;$i<$n-1;$i++)						
+        	$CVi .= pack("H*",self::F($Si[$i+1], 1600-$c, 0x0B, $c/8, $MLEN, $flag));
+					
+        $FinalNode = $Si[0]."\3\0\0\0\0\0\0\0".$CVi.pack("H*",self::fromBin(self::right_encode($n-1)))
+				."\xFF\xFF";
+				
+        return self::F($FinalNode, 1600-$c, 0x06, $L, $MLEN, $flag);	   
+	}
+		
+    function KangarooTwelve($stream, $S, $L, $MLEN)
+   	{
+	# https://tools.ietf.org/id/draft-viguier-kangarootwelve-04.html
+	   
+        $this->c = 256;
+	return self::K12M14($stream, $S, $L, $MLEN);
+	}
+
+    function MarsupilamiFourteen($stream, $S, $L, $MLEN)
+   	{
+	/*
+	--  MarsupilamiFourteen is a variant of KangarooTwelve which provides 256-bit
+	--  security (compared to 128-bit for KangarooTwelve). MarsupilamiFourteen is
+	--  identical to KangarooTwelve except for the following differences:
+	--
+	--  * MarsupilamiFourteen uses a 512-bit capacity (256-bit for KangarooTwelve)
+	--  * MarsupilamiFourteen uses a 14-round Keccak permutation (14 rounds for KangarooTwelve)
+	--  * MarsupilamiFourteen uses a 512-bit chaining value (256-bit for KangarooTwelve)
+	*/
+		   
+        $this->c = 512;
+	return self::K12M14($stream, $S, $L, $MLEN);
+	}
+			
+    function sha3($type,$stream,$outputl=0) 
+   	{
 	switch ($type) 
 		{
-		case "224": return $this->sha3_process($stream,1152, 0x06, 28);break;
-		case "256": return $this->sha3_process($stream,1088, 0x06, 32);break;
-		case "384": return $this->sha3_process($stream,832,  0x06, 48);break;
-		case "512": return $this->sha3_process($stream,576,  0x06, 64);break;
-		
-		/*
-		The name “SHAKE” was proposed in to combine the term “Secure Hash Algorithm” with “KECCAK.”
-		XOF = extendable-output-function: A function on bit strings in which the output can be extended to any
-		  desired length
-		*/
-		
+		case "224": return self::F($stream,1152, 0x06, 28,0,5);break;
+		case "256": return self::F($stream,1088, 0x06, 32,0,5);break;
+		case "384": return self::F($stream,832,  0x06, 48,0,5);break;
+		case "512": return self::F($stream,576,  0x06, 64,0,5);break;
+
 		if ($outputl==0) $ouputl=explode("SHAKE",$type)[1]/4;
 		
-		case "SHAKE128": return $this->sha3_process($stream,1344, 0x1f,$outputl);break;
-		case "SHAKE256": return $this->sha3_process($stream,1088, 0x1f,$outputl);break;
+		case "SHAKE128": return self::F($stream,1344, 0x1f,$outputl,0,5);break;
+		case "SHAKE256": return self::F($stream,1088, 0x1f,$outputl,0,5);break;
 		
 		die('Invalid operation type');		
 		}		
